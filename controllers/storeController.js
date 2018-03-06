@@ -51,6 +51,7 @@ exports.resize = async (req, res, next) => {
     next();
 };
 exports.createStore = async (req, res) => {
+    req.body.author = req.user._id;
     const store =  await (new Store(req.body)).save();
     req.flash('success',`Succefully create ${store.name}, now You are Prosoem.`);
     res.redirect(`/store/${store.slug}`);
@@ -65,11 +66,18 @@ exports.getStoreBySlug = async(req, res, next) => {
     const store = await Store.findOne({slug: req.params.slug});
     console.log(store, 'GET STORE DETAIl');
     if(!store) return next();
-    res.render('store', { store, title : store.name})
+    res.render('store', { store, title : store.name});
+}
+
+const confirmAuthor = (store, user) => {
+    if(!store.author.equals(user._id)){
+        throw Error ('You must own a store in order to edit store');
+    }
 }
 exports.editStore = async (req, res) => {
     const store = await Store.findOne({ _id: req.params.id});
     console.log(store,'====STORE===');
+    confirmAuthor(store,req.user);
     res.render('editStore', {title : `Edit ${store.name}`, store});
 }
 
@@ -92,4 +100,20 @@ exports.updateStore = async (req, res) => {
     req.flash('success',`Succefully updated ${store.name}, now You are Awesome.`);
     console.log(store,'====STORE===');
     res.redirect(`/stores/${store.id}/edit`);
+}
+
+exports.searchStores = async(req, res) => {
+    const store = await Store
+    .find({
+        $text: {
+            $search: req.query.q
+        }
+    }, {
+            score: { $meta: 'textScore' }
+    })
+    .sort({
+        score: { $meta: 'textScore' }
+    })
+    .limit(5);
+    res.json(store);
 }
